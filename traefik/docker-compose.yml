@@ -1,0 +1,44 @@
+---
+services:
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+       proxy:
+    ports:
+      - 80:80
+      - 443:443
+    environment:
+      - CF_API_EMAIL=leshevi2022@gmail.com
+      - CF_DNS_API_TOKEN=1cdddsKPNHhsxTQRz7yLWRGjIuXvPwbzyq9g64oL
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /home/ansible/traefik/traefik.yml:/traefik.yml:ro
+      - /home/ansible/traefik/acme.json:/acme.json
+      - /home/ansible/traefik/config.yml:/config.yml:ro
+      - /home/ansible/traefik/logs:/var/log/traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.entrypoints=http"
+      - "traefik.http.routers.traefik.rule=Host(`traefik-dashboard.leshevi.ru`)"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=admin:$$2y$$05$$jNn2TqniDeZu9UDyOCKNmeJsj21YJENEO4XGU8bnOwbnmyNoQSWi6"
+      - "traefik.http.middlewares.traefik-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.traefik.middlewares=traefik-https-redirect"
+      - "traefik.http.routers.traefik-secure.entrypoints=https"
+      - "traefik.http.routers.traefik-secure.rule=Host(`traefik-dashboard.leshevi.ru`)"
+      - "traefik.http.routers.traefik-secure.middlewares=traefik-auth"
+      - "traefik.http.routers.traefik-secure.tls=true"
+      - "traefik.http.routers.traefik-secure.tls.certresolver=cloudflare"
+      - "traefik.http.routers.traefik-secure.tls.domains[0].main=leshevi.ru"
+      - "traefik.http.routers.traefik-secure.tls.domains[0].sans=*.leshevi.ru"
+      - "traefik.http.routers.traefik-secure.service=api@internal"
+
+networks:
+  proxy:
+    name: proxy
+    external: true
