@@ -1,0 +1,24 @@
+- name: Preparing for installation traefik
+  hosts: managers[0]
+  become: true
+  tasks:
+    - name: Create a directory traefik if it does not exist
+      ansible.builtin.file:
+        path: /home/ansible/traefik
+        state: directory
+        mode: '0644'
+
+    - name: Copy file traefik.yml
+      ansible.builtin.copy:
+        src: srv/myfiles/traefik.yml
+        dest: /home/ansible/traefik/traefik.yml
+        mode: '0644'
+
+    - name: Create a network
+      community.docker.docker_network:
+        name: proxy
+
+    - name: Change file acme.json
+      ansible.builtin.file:
+        path: /home/ansible/traefik/
+        mode: '0600'
