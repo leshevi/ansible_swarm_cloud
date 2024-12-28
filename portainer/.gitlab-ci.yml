@@ -1,0 +1,42 @@
+---
+
+stages:
+  - deploy
+  - destroy
+
+.job_inj:
+  before_script:
+    - apk update && apk add openssh-client rsync
+    - eval $(ssh-agent -s)
+    - echo "$SSH_ROOT_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh && touch ~/.ssh/known_hosts
+    - ssh-keyscan -t ed25519 ${MAN1} >> ~/.ssh/known_hosts
+    - chmod 600 ~/.ssh
+
+
+deploy_portainer:
+  stage: deploy
+  tags:
+    - Docker
+  when: manual
+  only:
+    refs:
+      - main
+  extends: .job_inj
+  script:
+    - export DOCKER_HOST="ssh://${CI_SSH_USERNAME}@${MAN1}"
+    - docker compose up -d
+
+destroy_portainer:
+  stage: destroy
+  tags:
+    - Docker
+  when: manual
+  only:
+    refs:
+      - main
+  extends: .job_inj
+  script:
+    - export DOCKER_HOST="ssh://${CI_SSH_USERNAME}@${MAN1}"
+    - docker compose -f docker-compose.yml down
+
