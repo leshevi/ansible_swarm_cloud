@@ -1,6 +1,8 @@
 ---
 stages:
   - deploy
+  - restart
+  - destroy
 
 .job_inj:
   before_script:
@@ -11,7 +13,7 @@ stages:
     - ssh-keyscan -t ed25519 ${MAN1} >> ~/.ssh/known_hosts
     - chmod 600 ~/.ssh
 
-traefik:
+traefik _install:
   stage: deploy
   tags:
     - Docker
@@ -23,3 +25,29 @@ traefik:
   script:
     - export DOCKER_HOST="ssh://${CI_SSH_USERNAME}@${MAN1}"
     - docker compose up -d
+
+traefik_restart:
+  stage: restart
+  tags:
+    - Docker
+  when: manual
+  only:
+    refs:
+      - main
+  extends: .job_inj
+  script:
+    - export DOCKER_HOST="ssh://${CI_SSH_USERNAME}@${MAN1}"
+    - docker compose up -d --force-recreate
+
+traefik _stop:
+  stage: destroy
+  tags:
+    - Docker
+  when: manual
+  only:
+    refs:
+      - main
+  extends: .job_inj
+  script:
+    - export DOCKER_HOST="ssh://${CI_SSH_USERNAME}@${MAN1}"
+    - docker compose down
