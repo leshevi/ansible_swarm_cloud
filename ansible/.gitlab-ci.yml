@@ -1,2 +1,104 @@
+---
+stages:
+  - deploy_hosts
+  - lint_test
+  - prepare_kafka
+  - stop_kafka
+
+image: leshevi1/lin-ansible:01
+
+variables:
+  ANSIBLE_PYTHON_INTERPRETER: /usr/bin/python3
+  ANSIBLE_ROLES_PATH: roles
+  ANSIBLE_INVENTORY: inventories
+  ANSIBLE_REMOTE_TMP: /tmp
+  ANSIBLE_FORCE_COLOR: 'true'
+  ANSIBLE_STARATEGY: linear
+  ANSIBLE_PIPELINING: 1
+  ANSIBLE_TRANSPORT: ssh
+  ANSIBLE_BECOME_METHOD: 'su' # нужно если поднимаются права через su с вводом пароля от root
+  ANSIBLE_BECOME_USER: root
+  ANSIBLE_BECOME_ASKPASS: 'False'
+  ANSIBLE_FORCE_HANDLER: 'True'
+  ANSIBLE_STDOUT_CALLBACK: yaml
+  ANSIBLE_ASK_PASS: 'False'
+  ANSIBLE_NOCOWS: 1
+  ANSIBLE_HOST_KEY_CHECKING: 'false'
+  ANSIBLE_BECOME_EXE: 'sudo -p "Password: " su -'
+  DEPRECATION_WARNINGS: 'false'
+  ANSIBLE_TIMEOUT: 30
+  HOSTS_FILE: "inventories/hosts.yml"
+
+.deploy_template:
+  stage: deploy_hosts
+  before_script:
+    - rm .gitlab-ci.yml
+    - eval $(ssh-agent -s)
+    - echo "$SSH_ROOT_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - |
+      if [ -f "$HOSTS_FILE" ]; then
+        echo "Using existing hosts.yml file"
+      else
+        echo "Generating dynamic hosts.yml file"
+        mkdir inventories
+        cat > "$HOSTS_FILE" << EOF
+      $CLUSTER:
+        hosts:
+          $HOST_NAME1:
+            ansible_host: $HOST_NAME1_IP
+            ansible_user: $SSH_USER
+          $HOST_NAME2:
+            ansible_host: $HOST_NAME2_IP
+            ansible_user: $SSH_USER
+          $HOST_NAME3:
+            ansible_host: $HOST_NAME3_IP
+            ansible_user: $SSH_USER
+      EOF
+        echo "Файл '$HOSTS_FILE' успешно создан и заполнен."
+      fi
+      
+    - ansible --version
+    - cat $HOSTS_FILE
+    - ansible all -i $HOSTS_FILE -m ping
+  artifacts:
+    paths:
+      - $HOSTS_FILE
+
+
+ansible_lint_test:
+  stage: lint_test
+  when: manual
+  tags:
+    - Docker
+  extends: .deploy_template
+  script:
+    - ansible-lint -q --offline
+
+.job_inj:
+   before_script:
+    - rm .gitlab-ci.yml
+    - eval $(ssh-agent -s)
+    - echo "$SSH_ROOT_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+
+
+ansible_prepare_kafka:
+  stage: prepare_kafka
+  tags:
+    - Docker
+  when: manual
+  only:
+    refs:
+      - main
+    changes:
+      - "playbooks/**/*"
+      - "roles/**/*"
+      - ".gitlab-ci.yml"
+  needs:
+    - ansible_lint_test
+  extends: .job_inj
+  script:
+    - ansible-playbook playbooks/configure_swarm1.yml
+    - ansible-playbook playbooks/traefik_conf.yml
+
 
 
